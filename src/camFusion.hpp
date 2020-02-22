@@ -2,6 +2,7 @@
 #ifndef camFusion_hpp
 #define camFusion_hpp
 
+#include <iostream>
 #include <stdio.h>
 #include <vector>
 #include <opencv2/core.hpp>
@@ -17,5 +18,19 @@ void show3DObjects(std::vector<BoundingBox> &boundingBoxes, cv::Size worldSize, 
 void computeTTCCamera(std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPoint> &kptsCurr,
                       std::vector<cv::DMatch> kptMatches, double frameRate, double &TTC, cv::Mat *visImg=nullptr);
 void computeTTCLidar(std::vector<LidarPoint> &lidarPointsPrev,
-                     std::vector<LidarPoint> &lidarPointsCurr, double frameRate, double &TTC);                  
+                     std::vector<LidarPoint> &lidarPointsCurr, double frameRate, double &TTC); 
+
+inline std::ostream& operator<<(std::ostream& os, const cv::Rect& rect) {
+    os << "(" << rect.x << ", "
+              << rect.y << ", "
+              << rect.width << ", "
+              << rect.height << ")";
+    return os;
+}
+
+inline std::ostream& operator<<(std::ostream& os, const BoundingBox& bbox) {
+    os << "boxId: " << bbox.boxID << " " << bbox.roi;
+    return os;
+}
+
 #endif /* camFusion_hpp */

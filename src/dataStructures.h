@@ -37,4 +37,14 @@ struct DataFrame { // represents the available sensor information at the same ti
     std::map<int,int> bbMatches; // bounding box matches between previous and current frame
 };
 
+
+inline BoundingBox* boundingBoxOfId(DataFrame& dataFrame, int boxId) {
+    for (auto& bbox : dataFrame.boundingBoxes) {
+        if (bbox.boxID == boxId) {
+            return &bbox;
+        }
+    }
+    return nullptr;
+}
+
 #endif /* dataStructures_h */
