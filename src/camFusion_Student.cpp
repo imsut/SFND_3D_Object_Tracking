@@ -12,6 +12,61 @@
 
 using namespace std;
 
+static std::vector<double> extractX(const std::vector<LidarPoint>& points) {
+    std::vector<double> xs;
+    for (const auto& p : points) {
+        xs.push_back(p.x);
+    }
+    return xs;
+}
+
+static double median(std::vector<double> ds) {
+    if (ds.empty()) {
+        return NAN;
+    }
+
+    std::sort(ds.begin(), ds.end());
+
+    if (ds.size() % 2 == 0) {
+        return (ds.at(ds.size() / 2) + ds.at(ds.size() / 2 - 1)) / 2.0;
+    } else {
+        return ds.at(ds.size() / 2);
+    }
+}
+
+static double min(const std::vector<double>& ds) {
+    if (ds.empty()) {
+        return NAN;
+    }
+
+    double min = 100000;
+    for (const auto& d : ds) {
+        min = std::min(min, d);
+    }
+
+    return min;
+}
+
+static double percentile(double p, std::vector<double> ds) {
+    int index = std::min(static_cast<size_t>(std::min(1.0, p / 100.0) * ds.size()), ds.size() - 1);
+    std::nth_element(ds.begin(), ds.begin() + index, ds.end());
+    return ds.at(index);
+}
+
+static double width(const std::vector<double>& ds) {
+    if (ds.empty()) {
+        return 0.0;
+    }
+
+    double min = 1000000;
+    double max = -10000000;
+    for (const auto& d : ds) {
+        min = std::min(min, d);
+        max = std::max(max, d);
+    }
+
+    return max - min;
+}
 
 // Create groups of Lidar points whose projection into the camera falls into the same bounding box
 void clusterLidarWithROI(std::vector<BoundingBox> &boundingBoxes, std::vector<LidarPoint> &lidarPoints, float shrinkFactor, cv::Mat &P_rect_xx, cv::Mat &R_rect_xx, cv::Mat &RT)
@@ -107,7 +162,8 @@ void show3DObjects(std::vector<BoundingBox> &boundingBoxes, cv::Size worldSize, 
         char str1[200], str2[200];
         sprintf(str1, "id=%d, #pts=%d", it1->boxID, (int)it1->lidarPoints.size());
         putText(topviewImg, str1, cv::Point2f(left-250, bottom+50), cv::FONT_ITALIC, 2, currColor);
-        sprintf(str2, "xmin=%2.2f m, yw=%2.2f m", xwmin, ywmax-ywmin);
+        sprintf(str2, "xmin=%2.2f m, xmedian = %2.2f m, yw=%2.2f m",
+                xwmin, median(extractX(it1->lidarPoints)), ywmax-ywmin);
         putText(topviewImg, str2, cv::Point2f(left-250, bottom+125), cv::FONT_ITALIC, 2, currColor);  
     }
 
@@ -122,7 +178,7 @@ void show3DObjects(std::vector<BoundingBox> &boundingBoxes, cv::Size worldSize, 
 
     // display image
     string windowName = "3D Objects";
-    cv::namedWindow(windowName, 1);
+    cv::namedWindow(windowName, cv::WINDOW_NORMAL);
     cv::imshow(windowName, topviewImg);
 
     if(bWait)
@@ -174,9 +230,9 @@ void clusterKptMatchesWithROI(BoundingBox &boundingBox,
             return cv::norm(kp.pt - center) < stdev * sigma;
         });
 
+#if 0
     std::cout << "clusterKpMatchesWithROI: inbox = " << inboxMatches.size()
             << ", filtered = " << boundingBox.kptMatches.size() << std::endl;
-#if 0
     std::cout << "bbox: " << boundingBox << std::endl;
     for (const auto& kp : boundingBox.keypoints) {
         std::cout << "  kp: " << kp.pt << std::endl;
@@ -238,33 +294,30 @@ void computeTTCCamera(std::vector<cv::KeyPoint> &kptsPrev, std::vector<cv::KeyPo
     TTC = -dT / (1 - medianDistRatio);
 }
 
-double medianX(const std::vector<LidarPoint>& points) {
-    std::vector<double> xs;
-    for (const auto& p : points) {
-        xs.push_back(p.x);
-    }
-    std::sort(xs.begin(), xs.end());
-
-    if (xs.size() % 2 == 0) {
-        return (xs.at(xs.size() / 2) + xs.at(xs.size() / 2 - 1)) / 2.0;
-    } else {
-        return xs.at(xs.size() / 2);
-    }
-}
-
 void computeTTCLidar(std::vector<LidarPoint> &lidarPointsPrev,
                      std::vector<LidarPoint> &lidarPointsCurr, double frameRate, double &TTC) {
-    double xPrev = medianX(lidarPointsPrev);
-    double xCurr = medianX(lidarPointsCurr);
+    std::vector<double> xPrev = extractX(lidarPointsPrev);
+    std::vector<double> xCurr = extractX(lidarPointsCurr);
+    double prev = percentile(10.0, xPrev);
+    double curr = percentile(10.0, xCurr);
 
-    if (xCurr >= xPrev) {
+    if (curr >= prev) {
         // do not collide
         TTC = 0.0;
         return;
     }
 
-    double speed = (xPrev - xCurr) / (1.0 / frameRate);
-    TTC = xCurr / speed;
+    double speed = (prev - curr) / (1.0 / frameRate);
+    TTC = curr / speed;
+
+#if 0
+    std::cout << "TTCLidar = " << TTC
+    << ", prev/curr = " << prev << "/" << curr << " (" << prev - curr << ")"
+    << ", min = " << min(xPrev) << "/" << min(xCurr) << " (" << min(xPrev) - min(xCurr) << ")"
+    << ", height " << width(xPrev) << "/" << width(xCurr)
+    << std::endl;
+#endif
+
     return;
 }
 

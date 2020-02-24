@@ -133,9 +133,13 @@ int main(int argc, const char *argv[])
 
     /* MAIN LOOP OVER ALL IMAGES */
 
+    std::map<size_t, double> cameraTTCs;
+    std::map<size_t, double> lidarTTCs;
+
     for (size_t imgIndex = 0; imgIndex <= imgEndIndex - imgStartIndex; imgIndex+=imgStepWidth)
     {
         /* LOAD IMAGE INTO BUFFER */
+        std::cout << "Processing image " << imgIndex << std::endl;
 
         // assemble filenames for current index
         ostringstream imgNumber;
@@ -155,7 +159,7 @@ int main(int argc, const char *argv[])
             dataBuffer.erase(dataBuffer.begin());
         }
 
-        cout << "#1 : LOAD IMAGE INTO BUFFER done" << endl;
+        //cout << "#1 : LOAD IMAGE INTO BUFFER done" << endl;
 
 
         /* DETECT & CLASSIFY OBJECTS */
@@ -165,7 +169,7 @@ int main(int argc, const char *argv[])
         detectObjects((dataBuffer.end() - 1)->cameraImg, (dataBuffer.end() - 1)->boundingBoxes, confThreshold, nmsThreshold,
                       yoloBasePath, yoloClassesFile, yoloModelConfiguration, yoloModelWeights, vm["visualize-objects"].as<bool>());
 
-        cout << "#2 : DETECT & CLASSIFY OBJECTS done" << endl;
+        //cout << "#2 : DETECT & CLASSIFY OBJECTS done" << endl;
 
 
         /* CROP LIDAR POINTS */
@@ -181,7 +185,7 @@ int main(int argc, const char *argv[])
     
         (dataBuffer.end() - 1)->lidarPoints = lidarPoints;
 
-        cout << "#3 : CROP LIDAR POINTS done" << endl;
+        //cout << "#3 : CROP LIDAR POINTS done" << endl;
 
 
         /* CLUSTER LIDAR POINT CLOUD */
@@ -193,10 +197,10 @@ int main(int argc, const char *argv[])
         // Visualize 3D objects
         if (vm["visualize-3d-objects"].as<bool>())
         {
-            show3DObjects((dataBuffer.end()-1)->boundingBoxes, cv::Size(4.0, 20.0), cv::Size(2000, 2000), true);
+            show3DObjects((dataBuffer.end()-1)->boundingBoxes, cv::Size(4.0, 12.0), cv::Size(2000, 2000), true);
         }
 
-        cout << "#4 : CLUSTER LIDAR POINT CLOUD done" << endl;
+        //cout << "#4 : CLUSTER LIDAR POINT CLOUD done" << endl;
         
         /* DETECT IMAGE KEYPOINTS */
 
@@ -242,18 +246,17 @@ int main(int argc, const char *argv[])
         // push keypoints and descriptor for current frame to end of data buffer
         (dataBuffer.end() - 1)->keypoints = keypoints;
 
-        cout << "#5 : DETECT KEYPOINTS done" << endl;
+        //cout << "#5 : DETECT KEYPOINTS done" << endl;
 
         /* EXTRACT KEYPOINT DESCRIPTORS */
 
         cv::Mat descriptors;
-        string descriptorType = "BRISK"; // BRISK, BRIEF, ORB, FREAK, AKAZE, SIFT
         descKeypoints((dataBuffer.end() - 1)->keypoints, (dataBuffer.end() - 1)->cameraImg, descriptors, descExtractor);
 
         // push descriptors for current frame to end of data buffer
         (dataBuffer.end() - 1)->descriptors = descriptors;
 
-        cout << "#6 : EXTRACT DESCRIPTORS done" << endl;
+        //cout << "#6 : EXTRACT DESCRIPTORS done" << endl;
 
 
         if (dataBuffer.size() > 1) // wait until at least two images have been processed
@@ -274,7 +277,7 @@ int main(int argc, const char *argv[])
             // store matches in current data frame
             (dataBuffer.end() - 1)->kptMatches = matches;
 
-            cout << "#7 : MATCH KEYPOINT DESCRIPTORS done" << endl;
+            //cout << "#7 : MATCH KEYPOINT DESCRIPTORS done" << endl;
 
             /* TRACK 3D OBJECT BOUNDING BOXES */
 
@@ -295,7 +298,7 @@ int main(int argc, const char *argv[])
             // store matches in current data frame
             (dataBuffer.end()-1)->bbMatches = bbBestMatches;
 
-            cout << "#8 : TRACK 3D OBJECT BOUNDING BOXES done" << endl;
+            //cout << "#8 : TRACK 3D OBJECT BOUNDING BOXES done" << endl;
 
 
             /* COMPUTE TTC ON OBJECT IN FRONT */
@@ -324,6 +327,10 @@ int main(int argc, const char *argv[])
                     computeTTCCamera((dataBuffer.end() - 2)->keypoints, (dataBuffer.end() - 1)->keypoints, currBB->kptMatches, sensorFrameRate, ttcCamera);
                     //// EOF STUDENT ASSIGNMENT
 
+                    lidarTTCs[imgIndex] = ttcLidar;
+                    cameraTTCs[imgIndex] = ttcCamera;
+                    //std::cout << "TTCLidar = " << ttcLidar << ", TTCCamera = " << ttcCamera << std::endl;
+
                     if (vm["visualize-final-results"].as<bool>())
                     {
                         cv::Mat visImg = (dataBuffer.end() - 1)->cameraImg.clone();
@@ -347,6 +354,15 @@ int main(int argc, const char *argv[])
         }
 
     } // eof loop over all images
+
+    std::ofstream csv;
+    csv.open("/tmp/task6.csv", std::ios::out | std::ios::app);
+    csv << detectorType << "/" << descriptorType;
+    for (const auto& pair : cameraTTCs) {
+        csv << "," << pair.second;
+    }
+    csv << std::endl;
+    csv.close();
 
     return 0;
 }
