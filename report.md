@@ -104,4 +104,4 @@ Attached below is the table showing TTC estimate in each frame by detector/descr
 
 This graph shows TTC estimate difference by frame between each detector/descriptor combination and Lidar based estimation.
 
-![TTC difference between camera-based and Lidar based][task6.png]
+![TTC difference between camera-based and Lidar based](task6.png)
